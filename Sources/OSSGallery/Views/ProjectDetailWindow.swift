@@ -212,6 +212,7 @@ struct ProjectDetailWindow: View {
         .preferredColorScheme(.dark)
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
+            window.level = .floating
         })
         // ESC 关闭。这里用局部监听而不是 .keyboardShortcut(.escape)：
         // 后者是全局键等效，会干扰其它窗口。

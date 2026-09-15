@@ -14,6 +14,8 @@ struct RandomExploreView: View {
     var onClose: () -> Void
 
     @AppStorage("app_language") private var appLanguage: String = AppLanguage.system.rawValue
+    @State private var showFireworks = false
+    @State private var settledBounce = false
 
     var body: some View {
         ZStack {
@@ -24,8 +26,9 @@ struct RandomExploreView: View {
             if let repo {
                 card(for: repo)
                     .transition(.opacity)
-                    // 轮播过程中轻微缩放，制造"正在抽取"的动感
-                    .scaleEffect(isRolling ? 0.97 : 1.0)
+                    // 轮播过程中轻微缩放，定格瞬间弹跳放大并绽放烟花
+                    .scaleEffect(isRolling ? 0.96 : (settledBounce ? 1.04 : 1.0))
+                    .animation(.spring(response: 0.35, dampingFraction: 0.55), value: settledBounce)
                     .animation(.easeOut(duration: 0.12), value: isRolling)
             } else {
                 Text(L("当前没有可抽取的项目", "Nothing to pick from yet"))
@@ -34,6 +37,23 @@ struct RandomExploreView: View {
                     .padding(24)
                     .background(.ultraThinMaterial)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
+            }
+
+            // 烟花粒子绽放层
+            if showFireworks {
+                FireworksView {
+                    showFireworks = false
+                }
+            }
+        }
+        .onChange(of: isRolling) { oldRolling, newRolling in
+            // 当轮播从 true 变为 false（即抽取减速完成定格的时刻）
+            if oldRolling && !newRolling && repo != nil {
+                showFireworks = true
+                settledBounce = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    settledBounce = false
+                }
             }
         }
         .background(KeyPressMonitor { key in

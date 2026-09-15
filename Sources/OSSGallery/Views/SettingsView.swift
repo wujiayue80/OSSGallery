@@ -3,21 +3,16 @@ import SwiftUI
 struct SettingsView: View {
     @ObservedObject var config = ConfigManager.shared
     @AppStorage("app_language") private var appLanguage: String = AppLanguage.system.rawValue
-
-    // Token 直接用视图级 @AppStorage 绑定（而不是经 ConfigManager 的 @AppStorage 转发）。
-    // 两者读写的是同一个 UserDefaults 键，数据不会不同步；
-    // 但视图级 @AppStorage 是官方文档给出的标准用法，绑定行为最可靠。
     @AppStorage("github_api_key") private var apiKey: String = ""
 
     @State private var newCategoryName = ""
     @State private var newCategoryQuery = ""
+    @State private var editingCategoryId: UUID? = nil
     /// 规则试跑的结果文字（"✓ 可查到…"/"✗ …"）
     @State private var testResult: String?
     @State private var isTesting = false
 
     var body: some View {
-        // 窗口标题与左上角「关闭 / 最小化 / 全屏」三个按钮由系统提供，
-        // 因此不再自绘标题栏与关闭按钮，把垂直空间让给内容。
         TabView {
             generalTab
                 .tabItem {
@@ -29,14 +24,19 @@ struct SettingsView: View {
                     Label(L("分类", "Categories"), systemImage: "tag")
                 }
         }
-        // 最小尺寸交给窗口，用户可自由拉伸；不再写死 540×520。
-        .frame(minWidth: 560, minHeight: 520)
-        // 显式打开「可缩放 + 可全屏」，否则绿色按钮会显示「+」且拖边缘无效。
+        .frame(minWidth: 600, minHeight: 560)
         .allowWindowResizingAndFullScreen()
         .preferredColorScheme(.dark)
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
+            window.level = .floating
         })
+        .onAppear {
+            ModalWindowManager.shared.settingsOpened()
+        }
+        .onDisappear {
+            ModalWindowManager.shared.settingsClosed()
+        }
     }
 
     // MARK: - 通用
@@ -59,9 +59,6 @@ struct SettingsView: View {
                     Text(L("最近更新", "Recently Updated")).tag(RepoSortOption.updated.rawValue)
                 }
 
-                // 原实现把带 Spacer 的 HStack 当作 Stepper 的 label，
-                // 在 Form 的 label 列里 Spacer 会被压成 0，两个 Text 挤在一起。
-                // 改为 LabeledContent：标签归 label 列，数值与步进器归 value 列。
                 LabeledContent(L("每页数量", "Results Per Page")) {
                     HStack(spacing: 10) {
                         Text("\(config.perPage)")
@@ -86,7 +83,6 @@ struct SettingsView: View {
                         .frame(minWidth: 240)
                 }
 
-                // 键盘输入不可用时，用鼠标一键填入，绕开键入环节。
                 HStack(spacing: 8) {
                     Button(L("从剪贴板粘贴", "Paste from clipboard")) {
                         if let raw = NSPasteboard.general.string(forType: .string) {
@@ -99,33 +95,10 @@ struct SettingsView: View {
 
                     Button(L("清空", "Clear")) { apiKey = "" }
                         .controlSize(.small)
-                        .disabled(apiKey.isEmpty)
-
-                    Spacer()
-
-                    Text(apiKey.isEmpty
-                         ? L("未填入", "Not set")
-                         : L("已填入 \(apiKey.count) 个字符", "\(apiKey.count) characters"))
-                        .font(.caption)
-                        .foregroundColor(apiKey.isEmpty ? .orange : .green)
                 }
 
-                HStack {
-                    Text(L("路径：Settings → Developer settings → Personal access tokens（不是 OAuth Apps，也不是 GitHub Apps）",
-                           "Path: Settings → Developer settings → Personal access tokens (not OAuth Apps, not GitHub Apps)"))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Button(L("打开申请页", "Open token page")) {
-                        if let url = URL(string: "https://github.com/settings/tokens") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                    .controlSize(.small)
-                }
-
-                Text(L("正确的页面没有任何 URL 字段——创建表单只有 Note、Expiration、Select scopes 三块。推荐经典 Token：Tokens (classic) → Generate new token (classic)，不勾任何 scope。若用细粒度 Token，需 Account permissions → Followers → Read。",
-                       "The correct page has no URL fields at all — the form only asks for Note, Expiration and Scopes. A classic token needs no scopes (Tokens (classic) → Generate new token (classic)). A fine-grained token needs Account permissions → Followers → Read."))
+                Text(L("无需勾选任何敏感权限（保持只读即可）。填入后接口限流从 60 次/小时提升到 5000 次/小时。",
+                       "No special scopes required (read-only is fine). Increases rate limit from 60 to 5,000/hr."))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -137,58 +110,125 @@ struct SettingsView: View {
 
     private var categoriesTab: some View {
         VStack(spacing: 0) {
+            // 列表区
             List {
                 ForEach(config.categories) { category in
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(category.name).font(.headline)
-                            Text(category.query).font(.caption).foregroundColor(.secondary)
+                    let isEditingThis = editingCategoryId == category.id
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 6) {
+                                Text(category.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(isEditingThis ? .cyan : .white)
+
+                                if isEditingThis {
+                                    Text(L("正在编辑", "Editing"))
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.cyan)
+                                        .padding(.horizontal, 5)
+                                        .padding(.vertical, 1)
+                                        .background(Color.cyan.opacity(0.15))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            Text(category.query)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundColor(.secondary)
+                                .lineLimit(1)
                         }
+
                         Spacer()
-                        // 并集规则给个标记，一眼看出这条规则会发多次请求
+
                         if category.isUnion {
                             Text(L("并集 \(category.subQueries.count) 项", "union ×\(category.subQueries.count)"))
                                 .font(.system(size: 10, weight: .semibold))
-                                .foregroundColor(.cyan)
+                                .foregroundColor(.cyan.opacity(0.9))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.cyan.opacity(0.12))
                                 .clipShape(Capsule())
                         }
+
+                        // 编辑按钮
+                        Button {
+                            startEditing(category)
+                        } label: {
+                            Image(systemName: "pencil")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.cyan)
+                                .padding(6)
+                                .background(Color.cyan.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(L("修改此分类", "Edit this category"))
+
+                        // 删除按钮
+                        Button {
+                            deleteCategory(category)
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(.red.opacity(0.85))
+                                .padding(6)
+                                .background(Color.red.opacity(0.12))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help(L("删除此分类", "Delete this category"))
                     }
+                    .padding(.vertical, 4)
                 }
                 .onDelete(perform: config.removeCategory)
             }
 
             Divider()
 
+            // 编辑 / 添加 表单区
             VStack(alignment: .leading, spacing: 10) {
-                // 规则语法说明 —— 这几行是"怎么配"的全部答案
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(L("规则怎么写", "How to write a rule"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.secondary)
+                HStack {
+                    if let editingId = editingCategoryId,
+                       let target = config.categories.first(where: { $0.id == editingId }) {
+                        Label(L("修改分类：「\(target.name)」", "Edit Category: \"\(target.name)\""), systemImage: "pencil.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.cyan)
+                    } else {
+                        Label(L("添加新分类", "Add New Category"), systemImage: "plus.circle.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white.opacity(0.85))
+                    }
 
-                    Text(L("· `|` = 并集：topic:llm | topic:ai（拆成多次请求后合并去重）\n· 空格 = 交集：topic:ai topic:llm（同时带这两个 topic）\n· 支持原生语法：topic:  language:  stars:>  pushed:>  user:",
-                           "· `|` = union: topic:llm | topic:ai (fetched separately, then merged)\n· space = intersection: topic:ai topic:llm\n· native syntax: topic:  language:  stars:>  pushed:>  user:"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer()
+
+                    Button(L("恢复初始默认分类", "Reset to Defaults")) {
+                        config.resetToDefaultCategories()
+                        cancelEditing()
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.borderless)
+                    .foregroundColor(.secondary)
                 }
+
+                // 规则语法简述
+                Text(L("· `|` = 并集：topic:llm | topic:ai（拆成多个子查询合并）\n· 空格 = 交集：topic:ai stars:>1000\n· 原生语法全支持：topic: language: stars:> user: repo:",
+                       "· `|` = union: topic:llm | topic:ai\n· space = intersection: topic:ai stars:>1000\n· native qualifiers: topic: language: stars:> user: repo:"))
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 LabeledContent(L("名称", "Name")) {
                     TextField("", text: $newCategoryName,
-                              prompt: Text(L("如：🔥 Rust Web", "e.g. 🔥 Rust Web")))
+                              prompt: Text(L("如：🔥 实用工具", "e.g. 🔥 Tools")))
                         .textFieldStyle(.roundedBorder)
-                        .frame(minWidth: 240)
+                        .frame(minWidth: 260)
                 }
 
                 LabeledContent(L("规则", "Query")) {
                     HStack(spacing: 8) {
                         TextField("", text: $newCategoryQuery,
-                                  prompt: Text(L("如：topic:rust | topic:webassembly", "e.g. topic:rust | topic:webassembly")))
+                                  prompt: Text(L("如：topic:cli | topic:tool", "e.g. topic:cli | topic:tool")))
                             .textFieldStyle(.roundedBorder)
-                            .frame(minWidth: 240)
+                            .frame(minWidth: 260)
 
                         Button(L("测试", "Test")) { testRule() }
                             .controlSize(.small)
@@ -212,24 +252,62 @@ struct SettingsView: View {
                 }
 
                 HStack {
+                    if editingCategoryId != nil {
+                        Button(L("取消修改", "Cancel")) {
+                            cancelEditing()
+                        }
+                        .controlSize(.small)
+                    }
+
                     Spacer()
-                    Button(L("添加", "Add")) {
-                        guard !newCategoryName.isEmpty, !newCategoryQuery.isEmpty else { return }
-                        config.addCategory(name: newCategoryName, query: newCategoryQuery)
-                        newCategoryName = ""
-                        newCategoryQuery = ""
-                        testResult = nil
+
+                    Button(editingCategoryId != nil ? L("保存修改", "Save Changes") : L("添加分类", "Add Category")) {
+                        saveOrAddCategory()
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(newCategoryName.isEmpty || newCategoryQuery.isEmpty)
+                    .disabled(newCategoryName.trimmingCharacters(in: .whitespaces).isEmpty ||
+                              newCategoryQuery.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
             .padding()
+            .background(Color.white.opacity(0.025))
         }
     }
 
-    /// 试跑一次规则，立刻告诉用户"能查到东西"还是"写错了"。
-    /// 目的：避免配出一条查不到任何项目的空分类 —— 空分类在界面上和"功能坏了"没有区别。
+    private func startEditing(_ category: SearchCategory) {
+        editingCategoryId = category.id
+        newCategoryName = category.name
+        newCategoryQuery = category.query
+        testResult = nil
+    }
+
+    private func cancelEditing() {
+        editingCategoryId = nil
+        newCategoryName = ""
+        newCategoryQuery = ""
+        testResult = nil
+    }
+
+    private func deleteCategory(_ category: SearchCategory) {
+        if editingCategoryId == category.id {
+            cancelEditing()
+        }
+        config.deleteCategory(id: category.id)
+    }
+
+    private func saveOrAddCategory() {
+        let name = newCategoryName.trimmingCharacters(in: .whitespaces)
+        let query = newCategoryQuery.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty, !query.isEmpty else { return }
+
+        if let id = editingCategoryId {
+            config.updateCategory(id: id, name: name, query: query)
+        } else {
+            config.addCategory(name: name, query: query)
+        }
+        cancelEditing()
+    }
+
     private func testRule() {
         let raw = newCategoryQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !raw.isEmpty else { return }

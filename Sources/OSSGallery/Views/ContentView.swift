@@ -50,15 +50,19 @@ struct ContentView: View {
                     contentArea
                 }
             }
+            .disabled(detailTracker.isAnyModalActive)
 
-            // 准模态遮罩：详情窗口打开时盖住主窗口并吞掉点击。
-            // 要点——**只拦本应用的窗口**，切到别的软件不受影响，
-            // 这正是"弹出后只能操作它，除非关闭"要的效果。
-            if detailTracker.openCount > 0 && !exploring {
-                Color.black.opacity(0.3)
+            // 全局模态遮罩：只要有任何弹窗（详情、设置）处于打开状态，
+            // 主窗口就会进入完全禁用状态，并拦截一切点击。
+            // 点击遮罩时发出警报音并将子窗口激活置顶，彻底杜绝重复开窗或误操作。
+            if detailTracker.isAnyModalActive && !exploring {
+                Color.black.opacity(0.42)
+                    .background(.ultraThinMaterial.opacity(0.85))
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
-                    .onTapGesture { /* 只吞掉点击，不关闭 */ }
+                    .onTapGesture {
+                        detailTracker.bringActiveModalToFront()
+                    }
             }
 
             // 随机探索：全屏浮层，盖在所有内容之上
@@ -346,23 +350,37 @@ struct ContentView: View {
     // MARK: - 随机探索
 
     private func startExploring() {
+        guard !detailTracker.isAnyModalActive else {
+            detailTracker.bringActiveModalToFront()
+            return
+        }
         exploring = true
+        detailTracker.isExploring = true
         viewModel.startExplore()
     }
 
     private func stopExploring() {
         exploring = false
+        detailTracker.isExploring = false
         viewModel.stopExplore()
     }
 
     // MARK: - 窗口
 
     private func openSettings() {
+        guard !detailTracker.isAnyModalActive else {
+            detailTracker.bringActiveModalToFront()
+            return
+        }
         openWindow(id: AppWindowID.settings)
     }
 
     /// 详情是独立窗口，用 value 把项目数据带过去。
     private func openDetail(_ repo: GitHubRepo) {
+        guard !detailTracker.isAnyModalActive else {
+            detailTracker.bringActiveModalToFront()
+            return
+        }
         openWindow(id: AppWindowID.detail, value: repo)
     }
 }

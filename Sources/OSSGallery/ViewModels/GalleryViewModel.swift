@@ -138,8 +138,9 @@ class GalleryViewModel: ObservableObject {
 
         // 搜索优先：只要有搜索词就走搜索，不区分当前在哪个入口
         if !trimmed.isEmpty {
+            let subQueries = Self.githubSearchQueries(from: trimmed)
             return try await GitHubAPI.shared.fetchRepos(
-                query: Self.githubQuery(from: trimmed),
+                subQueries: subQueries,
                 sort: config.sortOption,
                 order: config.sortOrder,
                 perPage: config.perPage
@@ -198,30 +199,43 @@ class GalleryViewModel: ObservableObject {
         }
     }
 
-    /// 把搜索框里的人类写法翻译成 GitHub 查询语法。
+    /// 把搜索框里的人类写法翻译成一组 GitHub 查询语法（并发查询并合并去重）。
     ///
-    ///   `@antfu`               → `user:antfu`            按作者
-    ///   `antfu/vitesse`        → `repo:antfu/vitesse`    精确到某个项目
-    ///   `swiftui`              → 原样（GitHub 匹配名称 / 描述 / README）
-    ///   `topic:mcp stars:>500` → 原样透传（支持全部原生语法）
-    nonisolated static func githubQuery(from raw: String) -> String {
+    ///   `@antfu`               → `["user:antfu"]`
+    ///   `antfu/vitesse`        → `["repo:antfu/vitesse"]`
+    ///   `wujiayue80`           → `["wujiayue80", "user:wujiayue80"]` (同时搜仓库关键字与作者名下项目)
+    ///   `topic:mcp stars:>500` → `[text]` 原样透传
+    nonisolated static func githubSearchQueries(from raw: String) -> [String] {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return text }
+        guard !text.isEmpty else { return [] }
 
         // @作者
         if text.hasPrefix("@"), !text.contains(" ") {
             let login = text.dropFirst().trimmingCharacters(in: .whitespaces)
-            return login.isEmpty ? text : "user:\(login)"
+            return login.isEmpty ? [text] : ["user:\(login)"]
         }
 
-        // 作者/项目（不含空格、只有一个斜杠，且不是原生 qualifier）
+        // 作者/项目（例如 wujiayue80/OSSGallery）
         if !text.contains(" "),
            text.filter({ $0 == "/" }).count == 1,
            !text.contains(":") {
-            return "repo:\(text)"
+            return ["repo:\(text)"]
         }
 
-        return text
+        // 如果包含特定限定符（例如 topic:、user:、stars: 等），原样查询
+        if text.contains(":") {
+            return [text]
+        }
+
+        // 单个普通词（例如输入了纯作者名 "wujiayue80" 或关键词）：
+        // 同时并发两个子查询：
+        // 1. 匹配仓库名称、描述、README
+        // 2. 匹配该作者名下的所有公开仓库 (user:xxx)
+        if !text.contains(" ") {
+            return [text, "user:\(text)"]
+        }
+
+        return [text]
     }
 
     /// 「换一位推荐」：在高质量候选池里随机换一个 ≠ 当前的。

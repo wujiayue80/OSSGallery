@@ -105,6 +105,24 @@ class ConfigManager: ObservableObject {
         saveCategories()
     }
 
+    func updateCategory(id: UUID, name: String, query: String) {
+        if let index = categories.firstIndex(where: { $0.id == id }) {
+            categories[index].name = name
+            categories[index].query = query
+            saveCategories()
+        }
+    }
+
+    func deleteCategory(id: UUID) {
+        categories.removeAll(where: { $0.id == id })
+        saveCategories()
+    }
+
+    func resetToDefaultCategories() {
+        categories = defaultCategories
+        saveCategories()
+    }
+
     func removeCategory(at offsets: IndexSet) {
         categories.remove(atOffsets: offsets)
         saveCategories()
