@@ -3,7 +3,7 @@
 A curated, visual-driven, native macOS app for discovering exceptional GitHub open-source repositories.
 一款专为 Mac 用户打造的高颜值、现代暗黑画廊风格的 GitHub 开源项目探索利器。
 
-![OSS Gallery Preview](doc/oss_gallery_mac_ui_1789366332300.jpg)
+![OSS Gallery Preview](doc/screenshot.png)
 
 ---
 
