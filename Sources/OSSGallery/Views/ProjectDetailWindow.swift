@@ -212,18 +212,13 @@ struct ProjectDetailWindow: View {
         .preferredColorScheme(.dark)
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
-            window.level = .floating
+            ModalWindowManager.shared.registerModalWindow(window)
         })
         // ESC 关闭。这里用局部监听而不是 .keyboardShortcut(.escape)：
         // 后者是全局键等效，会干扰其它窗口。
         .background(EscapeKeyMonitor { dismiss() })
         .onAppear {
-            // 通知主窗口"详情已打开"，主窗口据此铺模态遮罩（点不动，但可切到别的软件）
-            tracker.opened()
             loadOverview()
-        }
-        .onDisappear {
-            tracker.closed()
         }
     }
 

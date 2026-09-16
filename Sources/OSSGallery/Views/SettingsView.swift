@@ -29,14 +29,8 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
-            window.level = .floating
+            ModalWindowManager.shared.registerModalWindow(window)
         })
-        .onAppear {
-            ModalWindowManager.shared.settingsOpened()
-        }
-        .onDisappear {
-            ModalWindowManager.shared.settingsClosed()
-        }
     }
 
     // MARK: - 通用
