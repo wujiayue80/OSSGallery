@@ -3,6 +3,7 @@ import AppKit
 
 /// 应用内独立窗口的标识。集中在此处，避免同一窗口 id 散落多处。
 enum AppWindowID {
+    static let main = "ossgallery.main"
     static let settings = "ossgallery.settings"
     static let detail = "ossgallery.detail"
 }

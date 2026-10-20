@@ -1,9 +1,35 @@
 import SwiftUI
+import AppKit
+
+/// 监听 Dock 栏点击事件：当用户关闭主窗口后，再次点击 Dock 图标时重新打开主窗口。
+///
+/// macOS 的 SwiftUI WindowGroup 在窗口被用户关闭后不会自动重建。
+/// 必须通过 NSApplicationDelegate 的 `applicationShouldHandleReopen` 回调，
+/// 手动调用 `openWindow(id:)` 或创建新窗口。
+class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag {
+            // 没有可见窗口时（主窗口已被关闭），重新打开主窗口
+            // 遍历所有窗口，如果有已存在的属于主界面的窗口，将其重新展示
+            for window in sender.windows {
+                if window.identifier?.rawValue == AppWindowID.main || window.title == "OSS Gallery" || window.title.isEmpty {
+                    window.makeKeyAndOrderFront(nil)
+                    return true
+                }
+            }
+            // 否则触发标准新建窗口动作
+            sender.sendAction(Selector(("newWindowForTab:")), to: nil, from: nil)
+        }
+        return true
+    }
+}
 
 @main
 struct OSSGalleryApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: AppWindowID.main) {
             ContentView()
         }
         // 关键：必须显式给初始尺寸。
@@ -24,8 +50,6 @@ struct OSSGalleryApp: App {
         }
 
         // 控制台 / 设置改为独立原生窗口：
-        // 由系统提供左上角「关闭 / 最小化 / 全屏(绿色双箭头)」三个标准按钮，
-        // 并支持用户自由拉伸。用 Window 而非 WindowGroup，避免出现"新建窗口"菜单项。
         Window(L("控制台", "Console"), id: AppWindowID.settings) {
             SettingsView()
         }
@@ -33,9 +57,6 @@ struct OSSGalleryApp: App {
         .windowResizability(.contentMinSize)
 
         // 项目详情同样改为独立窗口。
-        // 原本用 .sheet 呈现，但 AppKit 的 sheet 是附着在父窗口上的模态面板，
-        // 无论怎么配置都无法被用户拖拽边缘缩放，也没有独立窗口的交通灯按钮。
-        // 这里用 for: GitHubRepo.self 把项目数据带进窗口，每个项目一个窗口。
         WindowGroup(L("项目详情", "Project Detail"), id: AppWindowID.detail, for: GitHubRepo.self) { $selected in
             if let repo = selected {
                 ProjectDetailWindow(repo: repo)

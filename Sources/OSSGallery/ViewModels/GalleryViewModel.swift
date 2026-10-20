@@ -209,17 +209,28 @@ class GalleryViewModel: ObservableObject {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return [] }
 
+        // 过滤掉纯特殊字符输入（如 "/"、"/**"、"///" 等），
+        // 这些不构成有效的 GitHub 搜索词，直接发给 API 会返回 422。
+        let alphanumeric = text.filter { $0.isLetter || $0.isNumber }
+        guard !alphanumeric.isEmpty else { return [] }
+
         // @作者
         if text.hasPrefix("@"), !text.contains(" ") {
             let login = text.dropFirst().trimmingCharacters(in: .whitespaces)
-            return login.isEmpty ? [text] : ["user:\(login)"]
+            return login.isEmpty ? [] : ["user:\(login)"]
         }
 
         // 作者/项目（例如 wujiayue80/OSSGallery）
+        // 必须斜杠两侧都有字母数字才算有效的 owner/repo 格式
         if !text.contains(" "),
            text.filter({ $0 == "/" }).count == 1,
            !text.contains(":") {
-            return ["repo:\(text)"]
+            let parts = text.split(separator: "/", omittingEmptySubsequences: false)
+            if parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty {
+                return ["repo:\(text)"]
+            }
+            // 不完整的斜杠输入（如 "/" "abc/" "/abc"），当普通关键词处理
+            return [text]
         }
 
         // 如果包含特定限定符（例如 topic:、user:、stars: 等），原样查询
