@@ -77,6 +77,21 @@ final class ModalWindowManager: ObservableObject {
         }
     }
 
+    /// 关闭当前打开的模态子窗口（当用户点击卡片外部区域时触发）
+    func closeActiveModal() {
+        guard let window = activeModalWindow, window.isVisible else {
+            activeModalWindow = nil
+            isModalWindowVisible = false
+            objectWillChange.send()
+            return
+        }
+
+        window.close()
+        activeModalWindow = nil
+        isModalWindowVisible = false
+        objectWillChange.send()
+    }
+
     /// 聚焦激活的子窗口（仅在该窗口实际可见时才聚焦，绝不复活已关闭窗口）
     func bringActiveModalToFront() {
         guard let window = activeModalWindow, window.isVisible else {

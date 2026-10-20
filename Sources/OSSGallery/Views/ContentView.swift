@@ -53,15 +53,15 @@ struct ContentView: View {
             .disabled(detailTracker.isAnyModalActive)
 
             // 全局模态遮罩：只要有任何弹窗（详情、设置）处于打开状态，
-            // 主窗口就会进入完全禁用状态，并拦截一切点击。
-            // 点击遮罩时发出警报音并将子窗口激活置顶，彻底杜绝重复开窗或误操作。
+            // 主窗口就会进入完全禁用状态。
+            // 当鼠标点击卡片外部区域（即主窗口磨砂遮罩）时，自动关闭当前弹出的卡片窗口。
             if detailTracker.isAnyModalActive && !exploring {
                 Color.black.opacity(0.42)
                     .background(.ultraThinMaterial.opacity(0.85))
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture {
-                        detailTracker.bringActiveModalToFront()
+                        detailTracker.closeActiveModal()
                     }
             }
 
@@ -77,6 +77,16 @@ struct ContentView: View {
         }
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
+            // 当主窗口重新被点击激活时，若有模态卡片处于打开状态，自动关闭该卡片
+            NotificationCenter.default.addObserver(
+                forName: NSWindow.didBecomeKeyNotification,
+                object: window,
+                queue: .main
+            ) { _ in
+                if ModalWindowManager.shared.isAnyModalActive && !ModalWindowManager.shared.isExploring {
+                    ModalWindowManager.shared.closeActiveModal()
+                }
+            }
         })
         .preferredColorScheme(.dark)
         // 窗口尺寸由「内容尺寸」驱动（场景用了 windowResizability(.contentMinSize)）：

@@ -52,7 +52,20 @@ struct ProjectDetailWindow: View {
                     .padding(.leading, 24)
 
                     Spacer()
-                    // 关闭按钮已移除：独立窗口由左上角红色按钮 / ⌘W 关闭。
+
+                    // 卡片右上角关闭按钮
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 24))
+                            .foregroundColor(.white.opacity(0.8))
+                            .background(Circle().fill(Color.black.opacity(0.6)))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, 20)
+                    .padding(.bottom, -26)
+                    .help(L("关闭详情", "Close detail"))
                 }
             }
 
