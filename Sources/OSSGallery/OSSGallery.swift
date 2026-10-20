@@ -8,18 +8,8 @@ import AppKit
 /// 手动调用 `openWindow(id:)` 或创建新窗口。
 class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !flag {
-            // 没有可见窗口时（主窗口已被关闭），重新打开主窗口
-            // 遍历所有窗口，如果有已存在的属于主界面的窗口，将其重新展示
-            for window in sender.windows {
-                if window.identifier?.rawValue == AppWindowID.main || window.title == "OSS Gallery" || window.title.isEmpty {
-                    window.makeKeyAndOrderFront(nil)
-                    return true
-                }
-            }
-            // 否则触发标准新建窗口动作
-            sender.sendAction(Selector(("newWindowForTab:")), to: nil, from: nil)
-        }
+        // 用户点击 Dock 栏图标时唤出主窗口
+        MainWindowHolder.shared.show()
         return true
     }
 }

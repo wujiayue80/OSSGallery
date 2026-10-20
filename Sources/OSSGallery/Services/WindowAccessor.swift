@@ -25,6 +25,31 @@ struct WindowAccessor: NSViewRepresentable {
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
+/// 主窗口单例持有者：用于拦截点左上角红叉关闭，转为隐藏；
+/// 从而保证点击 Dock 图标时能 100% 瞬间无缝重新唤出主窗口。
+final class MainWindowHolder: NSObject, NSWindowDelegate {
+    static let shared = MainWindowHolder()
+    private(set) weak var window: NSWindow?
+
+    func register(_ window: NSWindow) {
+        self.window = window
+        window.delegate = self
+    }
+
+    func show() {
+        guard let win = window else { return }
+        win.setIsVisible(true)
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    // 核心拦截：当用户点击主窗口左上角红叉时，拦截关闭行为，转为隐藏窗口
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        return false
+    }
+}
+
 enum WindowConfigurator {
     /// 统一窗口外观与行为。三个窗口（主窗口 / 控制台 / 详情）都走这里。
     static func apply(to window: NSWindow) {

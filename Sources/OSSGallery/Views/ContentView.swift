@@ -77,6 +77,7 @@ struct ContentView: View {
         }
         .background(WindowAccessor { window in
             WindowConfigurator.apply(to: window)
+            MainWindowHolder.shared.register(window)
             // 当主窗口重新被点击激活时，若有模态卡片处于打开状态，自动关闭该卡片
             NotificationCenter.default.addObserver(
                 forName: NSWindow.didBecomeKeyNotification,
