@@ -52,21 +52,20 @@ struct ProjectDetailWindow: View {
                     .padding(.leading, 24)
 
                     Spacer()
-
-                    // 卡片右上角关闭按钮
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.white.opacity(0.8))
-                            .background(Circle().fill(Color.black.opacity(0.6)))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.trailing, 20)
-                    .padding(.bottom, -26)
-                    .help(L("关闭详情", "Close detail"))
                 }
+            }
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
+                        .shadow(color: .black.opacity(0.6), radius: 3)
+                }
+                .buttonStyle(.plain)
+                .padding(12)
+                .help(L("关闭详情", "Close detail"))
             }
 
             // Content
